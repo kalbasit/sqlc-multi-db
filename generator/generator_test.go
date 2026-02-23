@@ -2,7 +2,7 @@ package generator_test
 
 import (
 	"bytes"
-	"fmt"
+	"errors"
 	"go/ast"
 	"strings"
 	"testing"
@@ -11,7 +11,14 @@ import (
 	"github.com/kalbasit/sqlc-multi-db/generator"
 )
 
+var (
+	errTestInvalidDictCall       = errors.New("invalid dict call")
+	errTestDictKeysMustBeStrings = errors.New("dict keys must be strings")
+)
+
 func TestExprToString(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		expr     ast.Expr
@@ -47,6 +54,8 @@ func TestExprToString(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			defer func() {
 				if r := recover(); r != nil {
 					if !tt.panics {
@@ -66,6 +75,8 @@ func TestExprToString(t *testing.T) {
 }
 
 func TestIsDomainStructFunc(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		inputType string
 		want      bool
@@ -88,6 +99,8 @@ func TestIsDomainStructFunc(t *testing.T) {
 }
 
 func TestZeroValue(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		typeName string
 		want     string
@@ -109,6 +122,8 @@ func TestZeroValue(t *testing.T) {
 }
 
 func TestExtractBulkFor(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		comment string
 		want    string
@@ -128,6 +143,8 @@ func TestExtractBulkFor(t *testing.T) {
 }
 
 func TestToSingular(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		input string
 		want  string
@@ -147,6 +164,8 @@ func TestToSingular(t *testing.T) {
 }
 
 func TestJoinParamsCall(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		params  []generator.Param
@@ -183,6 +202,8 @@ func TestJoinParamsCall(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got, err := generator.JoinParamsCall(tt.params, tt.engPkg, generator.MethodInfo{}, nil, nil)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("JoinParamsCall() error = %v, wantErr %v", err, tt.wantErr)
@@ -198,6 +219,8 @@ func TestJoinParamsCall(t *testing.T) {
 }
 
 func TestWrapperTemplate(t *testing.T) {
+	t.Parallel()
+
 	// Mock engines
 	sqlite := generator.Engine{Name: "sqlite", Package: "sqlitedb"}
 
@@ -246,14 +269,14 @@ func TestWrapperTemplate(t *testing.T) {
 		"trimPrefix":          strings.TrimPrefix,
 		"dict": func(values ...interface{}) (map[string]interface{}, error) {
 			if len(values)%2 != 0 {
-				return nil, fmt.Errorf("invalid dict call")
+				return nil, errTestInvalidDictCall
 			}
 
 			dict := make(map[string]interface{}, len(values)/2)
 			for i := 0; i < len(values); i += 2 {
 				key, ok := values[i].(string)
 				if !ok {
-					return nil, fmt.Errorf("dict keys must be strings")
+					return nil, errTestDictKeysMustBeStrings
 				}
 
 				dict[key] = values[i+1]
@@ -302,7 +325,7 @@ func TestWrapperTemplate(t *testing.T) {
 
 			return "0"
 		},
-		"getTableName": func(structName string) string { return "users" },
+		"getTableName": func(_ string) string { return "users" },
 	}
 
 	tmpl, err := template.New("wrapper").Funcs(funcMap).Parse(generator.WrapperTemplate)
@@ -431,7 +454,7 @@ func TestWrapperTemplate(t *testing.T) {
 		return generator.MethodInfo{}
 	}
 
-	funcMap["joinParamsCall"] = func(params []generator.Param, engPkg string, targetMethodName string) (string, error) {
+	funcMap["joinParamsCall"] = func(params []generator.Param, engPkg string, _ string) (string, error) {
 		targetMethod := generator.MethodInfo{
 			Name: "CreateUser",
 			Params: []generator.Param{
@@ -443,7 +466,7 @@ func TestWrapperTemplate(t *testing.T) {
 
 		return generator.JoinParamsCall(params, engPkg, targetMethod, structs, structs)
 	}
-	funcMap["getTableName"] = func(structName string) string { return "users" }
+	funcMap["getTableName"] = func(_ string) string { return "users" }
 
 	tmpl, err = template.New("wrapper").Funcs(funcMap).Parse(generator.WrapperTemplate)
 	if err != nil {
@@ -467,6 +490,8 @@ func TestWrapperTemplate(t *testing.T) {
 }
 
 func TestGenerateFieldConversion(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name            string
 		targetFieldName string
@@ -519,6 +544,8 @@ func TestGenerateFieldConversion(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			got := generator.GenerateFieldConversion(tt.targetFieldName, tt.targetFieldType, tt.sourceFieldType, tt.sourceExpr)
 			if got != tt.want {
 				t.Errorf("GenerateFieldConversion() = %v, want %v", got, tt.want)
