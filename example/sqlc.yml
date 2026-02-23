@@ -1,0 +1,32 @@
+version: "2"
+sql:
+  # SQLite engine
+  - engine: "sqlite"
+    queries: "db/query.sqlite.sql"
+    schema: "db/migrations/sqlite"
+    gen:
+      go:
+        emit_sql_as_comment: true
+        emit_interface: true
+        package: "sqlitedb"
+        out: "pkg/database/sqlitedb"
+  # PostgreSQL engine
+  - engine: "postgresql"
+    queries: "db/query.postgres.sql"
+    schema: "db/migrations/postgres"
+    gen:
+      go:
+        emit_sql_as_comment: true
+        emit_interface: true
+        package: "postgresdb"
+        out: "pkg/database/postgresdb"
+  # MySQL engine
+  - engine: "mysql"
+    queries: "db/query.mysql.sql"
+    schema: "db/migrations/mysql"
+    gen:
+      go:
+        emit_sql_as_comment: true
+        emit_interface: true
+        package: "mysqldb"
+        out: "pkg/database/mysqldb"
