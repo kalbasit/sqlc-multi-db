@@ -25,7 +25,11 @@ var engines = []Engine{
 // Run is the main entry point for the generator.
 // querierPath is the path to the source querier.go file (e.g., postgresdb/querier.go).
 func Run(querierPath string) {
-	sourceDir := filepath.Dir(querierPath)
+	absQuerierPath, err := filepath.Abs(querierPath)
+	if err != nil {
+		log.Fatalf("resolving querier path: %v", err)
+	}
+	sourceDir := filepath.Dir(absQuerierPath)
 	targetDir := filepath.Dir(sourceDir) // Parent of postgresdb is pkg/database
 
 	// 1. Parse source package
