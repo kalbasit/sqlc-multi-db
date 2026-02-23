@@ -9,7 +9,7 @@ formatters:
         - standard
         - default
         - alias
-        - prefix(github.com/kalbasit/fastcdc)
+        - prefix(github.com/kalbasit/sqlc-multi-db)
         - blank
         - dot
       custom-order: true
