@@ -465,6 +465,9 @@ func detectPackageName(dir string) string {
 		if strings.HasPrefix(name, "generated_") {
 			continue
 		}
+		if strings.HasSuffix(name, "_test.go") {
+			continue
+		}
 		data, err := os.ReadFile(filepath.Join(dir, name))
 		if err != nil {
 			continue
