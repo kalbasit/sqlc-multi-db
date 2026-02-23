@@ -159,6 +159,10 @@ func parseQuerierInterface(typeSpec *ast.TypeSpec) ([]MethodInfo, bool) {
 	methods := make([]MethodInfo, 0, len(interfaceType.Methods.List))
 
 	for _, field := range interfaceType.Methods.List {
+		if len(field.Names) == 0 {
+			continue
+		}
+
 		m := MethodInfo{Name: field.Names[0].Name}
 		if field.Doc != nil {
 			for _, comment := range field.Doc.List {

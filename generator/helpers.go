@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"unicode"
 
 	"github.com/jinzhu/inflection"
 	"golang.org/x/tools/imports"
@@ -24,7 +25,7 @@ func toSnakeCase(s string) string {
 			}
 		}
 
-		res = append(res, []rune(strings.ToLower(string(r)))[0])
+		res = append(res, unicode.ToLower(r))
 	}
 
 	return string(res)
