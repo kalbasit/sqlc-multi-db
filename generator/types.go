@@ -1,6 +1,6 @@
 package generator
 
-// Engine configuration
+// Engine configuration.
 type Engine struct {
 	Name    string // e.g. "sqlite"
 	Package string // e.g. "sqlitedb"
@@ -9,7 +9,7 @@ type Engine struct {
 func (e Engine) IsMySQL() bool    { return e.Name == "mysql" }
 func (e Engine) IsPostgres() bool { return e.Name == "postgres" }
 
-// MethodInfo holds extracted data from the AST
+// MethodInfo holds extracted data from the AST.
 type MethodInfo struct {
 	Name         string
 	Params       []Param

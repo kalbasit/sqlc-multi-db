@@ -16,19 +16,20 @@ import (
 	"github.com/jinzhu/inflection"
 )
 
-var engines = []Engine{
-	{Name: "sqlite", Package: "sqlitedb"},
-	{Name: "postgres", Package: "postgresdb"},
-	{Name: "mysql", Package: "mysqldb"},
-}
-
 // Run is the main entry point for the generator.
 // querierPath is the path to the source querier.go file (e.g., postgresdb/querier.go).
 func Run(querierPath string) {
+	engines := []Engine{
+		{Name: "sqlite", Package: "sqlitedb"},
+		{Name: "postgres", Package: "postgresdb"},
+		{Name: "mysql", Package: "mysqldb"},
+	}
+
 	absQuerierPath, err := filepath.Abs(querierPath)
 	if err != nil {
 		log.Fatalf("resolving querier path: %v", err)
 	}
+
 	sourceDir := filepath.Dir(absQuerierPath)
 	targetDir := filepath.Dir(sourceDir) // Parent of postgresdb is pkg/database
 
@@ -37,6 +38,7 @@ func Run(querierPath string) {
 
 	// 2. Identify used structs from source methods
 	usedStructNames := make(map[string]bool)
+
 	for _, m := range sourceData.Methods {
 		for _, p := range m.Params {
 			cleanType := strings.TrimPrefix(p.Type, "[]")
@@ -44,6 +46,7 @@ func Run(querierPath string) {
 				usedStructNames[cleanType] = true
 			}
 		}
+
 		for _, r := range m.Returns {
 			cleanType := strings.TrimPrefix(r.Type, "[]")
 			if _, exists := sourceData.Structs[cleanType]; exists {
@@ -52,10 +55,11 @@ func Run(querierPath string) {
 		}
 	}
 
-	var sortedStructs []StructInfo
+	sortedStructs := make([]StructInfo, 0, len(usedStructNames))
 	for name := range usedStructNames {
 		sortedStructs = append(sortedStructs, sourceData.Structs[name])
 	}
+
 	sort.Slice(sortedStructs, func(i, j int) bool {
 		return sortedStructs[i].Name < sortedStructs[j].Name
 	})
@@ -65,25 +69,32 @@ func Run(querierPath string) {
 		if !isDomainStruct(name) || strings.HasSuffix(name, "Params") || strings.HasSuffix(name, "Row") {
 			continue
 		}
+
 		hasID := false
+
 		for _, f := range sourceData.Structs[name].Fields {
 			if f.Name == "ID" {
 				hasID = true
+
 				break
 			}
 		}
+
 		if !hasID {
 			continue
 		}
 
 		methodName := "Get" + name + "ByID"
 		found := false
+
 		for _, m := range sourceData.Methods {
 			if m.Name == methodName {
 				found = true
+
 				break
 			}
 		}
+
 		if !found {
 			log.Printf("Synthesizing %s\n", methodName)
 			sourceData.Methods = append(sourceData.Methods, MethodInfo{
@@ -120,6 +131,7 @@ func Run(querierPath string) {
 
 	// 6. Parse all target packages
 	engineData := make(map[string]PackageData)
+
 	for _, engine := range engines {
 		engineDir := filepath.Join(targetDir, engine.Package)
 		engineData[engine.Name] = parsePackage(engineDir)
@@ -127,18 +139,118 @@ func Run(querierPath string) {
 
 	// 7. Generate wrappers
 	for _, engine := range engines {
-		generateWrapper(targetDir, packageName, importBase, engine, sourceData.Methods, sourceData.Structs, engineData[engine.Name])
+		generateWrapper(
+			targetDir, packageName, importBase, engine,
+			sourceData.Methods, sourceData.Structs, engineData[engine.Name],
+		)
 	}
+}
+
+func parseQuerierInterface(typeSpec *ast.TypeSpec) ([]MethodInfo, bool) {
+	if typeSpec.Name.Name != typeQuerier {
+		return nil, false
+	}
+
+	interfaceType, ok := typeSpec.Type.(*ast.InterfaceType)
+	if !ok {
+		return nil, false
+	}
+
+	methods := make([]MethodInfo, 0, len(interfaceType.Methods.List))
+
+	for _, field := range interfaceType.Methods.List {
+		if len(field.Names) == 0 {
+			continue
+		}
+
+		m := MethodInfo{Name: field.Names[0].Name}
+		if field.Doc != nil {
+			for _, comment := range field.Doc.List {
+				m.Docs = append(m.Docs, comment.Text)
+				if strings.Contains(comment.Text, "@bulk-for") {
+					if bulkFor := extractBulkFor(comment.Text); bulkFor != "" {
+						m.BulkFor = bulkFor
+					}
+				}
+			}
+		}
+
+		funcType := field.Type.(*ast.FuncType)
+		for _, param := range funcType.Params.List {
+			typeStr := exprToString(param.Type)
+			for _, name := range param.Names {
+				m.Params = append(m.Params, Param{Name: name.Name, Type: typeStr})
+			}
+		}
+
+		if funcType.Results != nil {
+			for _, res := range funcType.Results.List {
+				typeStr := exprToString(res.Type)
+
+				m.Returns = append(m.Returns, Return{Type: typeStr})
+				switch typeStr {
+				case "error":
+					m.ReturnsError = true
+				case typeQuerier:
+					m.ReturnsSelf = true
+					m.HasValue = true
+				default:
+					m.HasValue = true
+					m.ReturnElem = strings.TrimPrefix(typeStr, "[]")
+				}
+			}
+		}
+
+		m.IsCreate = strings.HasPrefix(m.Name, "Create") && isDomainStruct(m.ReturnElem)
+		m.IsUpdate = strings.HasPrefix(m.Name, "Update") && isDomainStruct(m.ReturnElem)
+		methods = append(methods, m)
+	}
+
+	return methods, true
+}
+
+func parseStructType(typeSpec *ast.TypeSpec, structType *ast.StructType) StructInfo {
+	s := StructInfo{Name: typeSpec.Name.Name}
+
+	if structType.Fields == nil {
+		return s
+	}
+
+	for _, field := range structType.Fields.List {
+		typeStr := exprToString(field.Type)
+		tag := ""
+
+		if field.Tag != nil {
+			unquoted, err := strconv.Unquote(field.Tag.Value)
+			if err != nil {
+				log.Fatalf("failed to unquote struct tag %s: %v", field.Tag.Value, err)
+			}
+
+			tag = unquoted
+		}
+
+		if len(field.Names) > 0 {
+			for _, name := range field.Names {
+				s.Fields = append(s.Fields, FieldInfo{Name: name.Name, Type: typeStr, Tag: tag})
+			}
+		} else {
+			s.Fields = append(s.Fields, FieldInfo{Name: "", Type: typeStr, Tag: tag})
+		}
+	}
+
+	return s
 }
 
 func parsePackage(dir string) PackageData {
 	fset := token.NewFileSet()
+
 	pkgs, err := parser.ParseDir(fset, dir, nil, parser.ParseComments)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	var methods []MethodInfo
+	methods := make([]MethodInfo, 0, 32)
+
 	structs := make(map[string]StructInfo)
 
 	for _, pkg := range pkgs {
@@ -149,77 +261,15 @@ func parsePackage(dir string) PackageData {
 					return true
 				}
 
-				if typeSpec.Name.Name == "Querier" {
-					interfaceType, ok := typeSpec.Type.(*ast.InterfaceType)
-					if !ok {
-						return true
-					}
-					for _, field := range interfaceType.Methods.List {
-						m := MethodInfo{Name: field.Names[0].Name}
-						if field.Doc != nil {
-							for _, comment := range field.Doc.List {
-								m.Docs = append(m.Docs, comment.Text)
-								if strings.Contains(comment.Text, "@bulk-for") {
-									if bulkFor := extractBulkFor(comment.Text); bulkFor != "" {
-										m.BulkFor = bulkFor
-									}
-								}
-							}
-						}
-
-						funcType := field.Type.(*ast.FuncType)
-						for _, param := range funcType.Params.List {
-							typeStr := exprToString(param.Type)
-							for _, name := range param.Names {
-								m.Params = append(m.Params, Param{Name: name.Name, Type: typeStr})
-							}
-						}
-
-						if funcType.Results != nil {
-							for _, res := range funcType.Results.List {
-								typeStr := exprToString(res.Type)
-								m.Returns = append(m.Returns, Return{Type: typeStr})
-								if typeStr == "error" {
-									m.ReturnsError = true
-								} else if typeStr == "Querier" {
-									m.ReturnsSelf = true
-									m.HasValue = true
-								} else {
-									m.HasValue = true
-									m.ReturnElem = strings.TrimPrefix(typeStr, "[]")
-								}
-							}
-						}
-						m.IsCreate = strings.HasPrefix(m.Name, "Create") && isDomainStruct(m.ReturnElem)
-						m.IsUpdate = strings.HasPrefix(m.Name, "Update") && isDomainStruct(m.ReturnElem)
-						methods = append(methods, m)
-					}
+				if querierMethods, matched := parseQuerierInterface(typeSpec); matched {
+					methods = append(methods, querierMethods...)
 				}
 
 				if structType, ok := typeSpec.Type.(*ast.StructType); ok {
-					s := StructInfo{Name: typeSpec.Name.Name}
-					if structType.Fields != nil {
-						for _, field := range structType.Fields.List {
-							typeStr := exprToString(field.Type)
-							tag := ""
-							if field.Tag != nil {
-								unquoted, err := strconv.Unquote(field.Tag.Value)
-								if err != nil {
-									log.Fatalf("failed to unquote struct tag %s: %v", field.Tag.Value, err)
-								}
-								tag = unquoted
-							}
-							if len(field.Names) > 0 {
-								for _, name := range field.Names {
-									s.Fields = append(s.Fields, FieldInfo{Name: name.Name, Type: typeStr, Tag: tag})
-								}
-							} else {
-								s.Fields = append(s.Fields, FieldInfo{Name: "", Type: typeStr, Tag: tag})
-							}
-						}
-					}
+					s := parseStructType(typeSpec, structType)
 					structs[s.Name] = s
 				}
+
 				return true
 			})
 		}
@@ -234,7 +284,9 @@ func parsePackage(dir string) PackageData {
 
 func generateModels(dir, packageName string, structs []StructInfo) {
 	t := template.Must(template.New("models").Parse(modelsTemplate))
+
 	var buf bytes.Buffer
+
 	data := map[string]interface{}{
 		"PackageName": packageName,
 		"Structs":     structs,
@@ -242,6 +294,7 @@ func generateModels(dir, packageName string, structs []StructInfo) {
 	if err := t.Execute(&buf, data); err != nil {
 		log.Fatalf("executing models template: %v", err)
 	}
+
 	writeFile(dir, generatedFilePrefix+"models.go", buf.Bytes())
 }
 
@@ -252,6 +305,7 @@ func generateQuerier(dir, packageName string, methods []MethodInfo) {
 	}).Parse(querierTemplate))
 
 	var buf bytes.Buffer
+
 	data := map[string]interface{}{
 		"PackageName": packageName,
 		"Methods":     methods,
@@ -259,22 +313,32 @@ func generateQuerier(dir, packageName string, methods []MethodInfo) {
 	if err := t.Execute(&buf, data); err != nil {
 		log.Fatalf("executing querier template: %v", err)
 	}
+
 	writeFile(dir, generatedFilePrefix+"querier.go", buf.Bytes())
 }
 
 func generateErrors(dir, packageName string) {
 	t := template.Must(template.New("errors").Parse(errorsTemplate))
+
 	var buf bytes.Buffer
+
 	data := map[string]interface{}{
 		"PackageName": packageName,
 	}
 	if err := t.Execute(&buf, data); err != nil {
 		log.Fatalf("executing errors template: %v", err)
 	}
+
 	writeFile(dir, generatedFilePrefix+"errors.go", buf.Bytes())
 }
 
-func generateWrapper(dir, packageName, importBase string, engine Engine, methods []MethodInfo, structs map[string]StructInfo, engData PackageData) {
+func generateWrapper(
+	dir, packageName, importBase string,
+	engine Engine,
+	methods []MethodInfo,
+	structs map[string]StructInfo,
+	engData PackageData,
+) {
 	t := template.Must(template.New("wrapper").Funcs(template.FuncMap{
 		"joinParamsSignature": joinParamsSignature,
 		"joinReturns":         joinReturns,
@@ -293,38 +357,46 @@ func generateWrapper(dir, packageName, importBase string, engine Engine, methods
 					return m
 				}
 			}
+
 			return MethodInfo{}
 		},
 		"getTargetStruct": func(name string) StructInfo {
 			if engData.Structs == nil {
 				return StructInfo{}
 			}
+
 			return engData.Structs[name]
 		},
 		"joinParamsCall": func(params []Param, engPkg string, targetMethodName string) (string, error) {
 			targetMethod := MethodInfo{}
+
 			if engData.Methods != nil {
 				for _, m := range engData.Methods {
 					if m.Name == targetMethodName {
 						targetMethod = m
+
 						break
 					}
 				}
 			}
+
 			return joinParamsCall(params, engPkg, targetMethod, engData.Structs, structs)
 		},
 		"dict": func(values ...interface{}) (map[string]interface{}, error) {
 			if len(values)%2 != 0 {
-				return nil, fmt.Errorf("invalid dict call")
+				return nil, errInvalidDictCall
 			}
+
 			dict := make(map[string]interface{}, len(values)/2)
 			for i := 0; i < len(values); i += 2 {
 				key, ok := values[i].(string)
 				if !ok {
-					return nil, fmt.Errorf("dict keys must be strings")
+					return nil, errDictKeysMustBeStrings
 				}
+
 				dict[key] = values[i+1]
 			}
+
 			return dict, nil
 		},
 		"hasSuffix":               strings.HasSuffix,
@@ -355,11 +427,13 @@ func generateWrapper(dir, packageName, importBase string, engine Engine, methods
 								if clause.keyword == "INSERT INTO " {
 									tableName = strings.Trim(tableName, "()")
 								}
+
 								return tableName, true
 							}
 						}
 					}
 				}
+
 				return "", false
 			}
 
@@ -381,6 +455,7 @@ func generateWrapper(dir, packageName, importBase string, engine Engine, methods
 					}
 				}
 			}
+
 			return strings.ToLower(inflection.Plural(structName))
 		},
 	}).Parse(wrapperTemplate))
@@ -398,6 +473,7 @@ func generateWrapper(dir, packageName, importBase string, engine Engine, methods
 	if err := t.Execute(&buf, data); err != nil {
 		log.Fatalf("executing wrapper template: %v", err)
 	}
+
 	writeFile(dir, fmt.Sprintf("%swrapper_%s.go", generatedFilePrefix, engine.Name), buf.Bytes())
 }
 
@@ -412,7 +488,7 @@ func exprToString(expr ast.Expr) string {
 	case *ast.ArrayType:
 		return "[]" + exprToString(t.Elt)
 	case *ast.InterfaceType:
-		return "interface{}"
+		return typeAny
 	default:
 		panic(fmt.Sprintf("unhandled expression type: %T", t))
 	}
