@@ -186,8 +186,10 @@ func TestJoinParamsCall(t *testing.T) {
 			got, err := generator.JoinParamsCall(tt.params, tt.engPkg, generator.MethodInfo{}, nil, nil)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("JoinParamsCall() error = %v, wantErr %v", err, tt.wantErr)
+
 				return
 			}
+
 			if got != tt.want {
 				t.Errorf("JoinParamsCall() = %v, want %v", got, tt.want)
 			}
@@ -246,14 +248,17 @@ func TestWrapperTemplate(t *testing.T) {
 			if len(values)%2 != 0 {
 				return nil, fmt.Errorf("invalid dict call")
 			}
+
 			dict := make(map[string]interface{}, len(values)/2)
 			for i := 0; i < len(values); i += 2 {
 				key, ok := values[i].(string)
 				if !ok {
 					return nil, fmt.Errorf("dict keys must be strings")
 				}
+
 				dict[key] = values[i+1]
 			}
+
 			return dict, nil
 		},
 		"getTargetMethod": func(name string) generator.MethodInfo {
@@ -267,6 +272,7 @@ func TestWrapperTemplate(t *testing.T) {
 					Returns: []generator.Return{{Type: "error"}},
 				}
 			}
+
 			return generator.MethodInfo{}
 		},
 		"getTargetStruct": func(name string) generator.StructInfo { return structs[name] },
@@ -282,6 +288,7 @@ func TestWrapperTemplate(t *testing.T) {
 					Returns: []generator.Return{{Type: "error"}},
 				}
 			}
+
 			return generator.JoinParamsCall(params, engPkg, targetMethod, structs, structs)
 		},
 		"hasSuffix":               strings.HasSuffix,
@@ -292,6 +299,7 @@ func TestWrapperTemplate(t *testing.T) {
 			if m.ReturnsSelf {
 				return "nil"
 			}
+
 			return "0"
 		},
 		"getTableName": func(structName string) string { return "users" },
@@ -341,7 +349,9 @@ func TestWrapperTemplate(t *testing.T) {
 	}
 
 	data["Methods"] = methods
+
 	buf.Reset()
+
 	if err := tmpl.Execute(&buf, data); err != nil {
 		t.Fatalf("failed to execute template: %v", err)
 	}
@@ -365,7 +375,9 @@ func TestWrapperTemplate(t *testing.T) {
 	}
 
 	data["Methods"] = methods
+
 	buf.Reset()
+
 	if err := tmpl.Execute(&buf, data); err != nil {
 		t.Fatalf("failed to execute template: %v", err)
 	}
@@ -374,6 +386,7 @@ func TestWrapperTemplate(t *testing.T) {
 	if !strings.Contains(output, "nil, ErrNotFound") {
 		t.Errorf("expected output to contain 'nil, ErrNotFound' for WithTx, but it didn't\n%s", output)
 	}
+
 	if !strings.Contains(output, "nil, err") {
 		t.Errorf("expected output to contain 'nil, err' for WithTx, but it didn't\n%s", output)
 	}
@@ -414,6 +427,7 @@ func TestWrapperTemplate(t *testing.T) {
 				Returns: []generator.Return{{Type: "error"}},
 			}
 		}
+
 		return generator.MethodInfo{}
 	}
 
@@ -426,6 +440,7 @@ func TestWrapperTemplate(t *testing.T) {
 			},
 			Returns: []generator.Return{{Type: "error"}},
 		}
+
 		return generator.JoinParamsCall(params, engPkg, targetMethod, structs, structs)
 	}
 	funcMap["getTableName"] = func(structName string) string { return "users" }
@@ -436,12 +451,15 @@ func TestWrapperTemplate(t *testing.T) {
 	}
 
 	data["Methods"] = methods
+
 	buf.Reset()
+
 	if err := tmpl.Execute(&buf, data); err != nil {
 		t.Fatalf("failed to execute template: %v", err)
 	}
 
 	output = buf.String()
+
 	expectedConversion := "Bio: sql.NullString{String: user.Bio, Valid: true}"
 	if !strings.Contains(output, expectedConversion) {
 		t.Errorf("expected output to contain '%s', but it didn't\n%s", expectedConversion, output)

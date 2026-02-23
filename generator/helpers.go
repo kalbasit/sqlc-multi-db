@@ -14,16 +14,19 @@ import (
 
 func toSnakeCase(s string) string {
 	var res []rune
+
 	for i, r := range s {
 		if i > 0 && r >= 'A' && r <= 'Z' {
 			// Check if previous was also uppercase (e.g. ID)
 			prev := rune(s[i-1])
-			if !(prev >= 'A' && prev <= 'Z') {
+			if prev < 'A' || prev > 'Z' {
 				res = append(res, '_')
 			}
 		}
+
 		res = append(res, []rune(strings.ToLower(string(r)))[0])
 	}
+
 	return string(res)
 }
 
@@ -31,6 +34,7 @@ func quote(e Engine, s string) string {
 	if e.IsMySQL() {
 		return "`" + s + "`"
 	}
+
 	return `\"` + s + `\"`
 }
 
@@ -41,6 +45,7 @@ func extractBulkFor(comment string) string {
 			return parts[i+1]
 		}
 	}
+
 	return ""
 }
 
@@ -67,6 +72,7 @@ func writeFile(dir, filename string, content []byte) {
 	if err := os.WriteFile(filepath.Join(dir, filename), formatted, 0o644); err != nil {
 		log.Fatal(err)
 	}
+
 	fmt.Printf("Generated %s\n", filename)
 }
 
@@ -77,6 +83,7 @@ func hasParam(name string, params []Param) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -85,6 +92,7 @@ func paramHasField(paramName string, fieldName string, params []Param, structs m
 		if param.Name == paramName {
 			typeName := strings.TrimPrefix(param.Type, "[]")
 			typeName = strings.TrimPrefix(typeName, "*")
+
 			typeParts := strings.Split(typeName, ".")
 			if len(typeParts) > 1 {
 				typeName = typeParts[len(typeParts)-1]
@@ -97,9 +105,11 @@ func paramHasField(paramName string, fieldName string, params []Param, structs m
 					}
 				}
 			}
+
 			return false
 		}
 	}
+
 	return false
 }
 
@@ -108,6 +118,7 @@ func joinParamsSignature(params []Param) string {
 	for _, param := range params {
 		p = append(p, fmt.Sprintf("%s %s", param.Name, param.Type))
 	}
+
 	return strings.Join(p, ", ")
 }
 
@@ -118,6 +129,7 @@ func JoinParamsCall(params []Param, engPkg string, targetMethod MethodInfo, targ
 
 func joinParamsCall(params []Param, engPkg string, targetMethod MethodInfo, targetStructs map[string]StructInfo, sourceStructs map[string]StructInfo) (string, error) {
 	var p []string
+
 	for i, param := range params {
 		if isDomainStructFunc(param.Type) {
 			if strings.HasPrefix(param.Type, "[]") {
@@ -133,13 +145,17 @@ func joinParamsCall(params []Param, engPkg string, targetMethod MethodInfo, targ
 					targetStruct := targetStructs[targetParamType]
 
 					var fields []string
+
 					for _, targetField := range targetStruct.Fields {
 						var sourceField FieldInfo
+
 						found := false
+
 						for _, sf := range sourceStruct.Fields {
 							if sf.Name == targetField.Name {
 								sourceField = sf
 								found = true
+
 								break
 							}
 						}
@@ -154,6 +170,7 @@ func joinParamsCall(params []Param, engPkg string, targetMethod MethodInfo, targ
 							fields = append(fields, conversion)
 						}
 					}
+
 					p = append(p, fmt.Sprintf("%s.%s{\n%s,\n}", engPkg, targetParamType, strings.Join(fields, ",\n")))
 				} else {
 					p = append(p, fmt.Sprintf("%s.%s(%s)", engPkg, param.Type, param.Name))
@@ -172,6 +189,7 @@ func joinParamsCall(params []Param, engPkg string, targetMethod MethodInfo, targ
 			}
 		}
 	}
+
 	return strings.Join(p, ", "), nil
 }
 
@@ -180,6 +198,7 @@ func joinReturns(returns []Return) string {
 	for _, ret := range returns {
 		r = append(r, ret.Type)
 	}
+
 	return strings.Join(r, ", ")
 }
 
@@ -191,12 +210,14 @@ func firstReturnType(returns []Return) string {
 	if len(returns) > 0 {
 		return returns[0].Type
 	}
+
 	return ""
 }
 
 // isDomainStructFunc checks if type is a "Domain Struct" based on naming convention.
 func isDomainStructFunc(t string) bool {
 	t = strings.TrimPrefix(t, "[]")
+
 	return len(t) > 0 && t[0] >= 'A' && t[0] <= 'Z' && !strings.Contains(t, ".") && t != "Querier"
 }
 
@@ -209,6 +230,7 @@ func zeroValue(t string) string {
 	if isNumeric(t) {
 		return "0"
 	}
+
 	switch t {
 	case "bool":
 		return "false"
@@ -217,12 +239,15 @@ func zeroValue(t string) string {
 	case "error":
 		return "nil"
 	}
+
 	if strings.HasPrefix(t, "*") || strings.HasPrefix(t, "[]") || strings.HasPrefix(t, "map[") || t == "interface{}" {
 		return "nil"
 	}
+
 	if t == "sql.Result" || t == "Querier" {
 		return "nil"
 	}
+
 	return fmt.Sprintf("%s{}", t)
 }
 
@@ -237,6 +262,7 @@ func isNumeric(t string) bool {
 	case "byte", "rune":
 		return true
 	}
+
 	return false
 }
 
@@ -244,6 +270,7 @@ func isStructType(t string) bool {
 	if strings.HasPrefix(t, "sql.Null") {
 		return true
 	}
+
 	return false
 }
 
@@ -330,9 +357,11 @@ func generateFieldConversion(targetFieldName, targetFieldType, sourceFieldType, 
 	// Case 4: Both are sql.Null* types but different
 	if isSqlNullType(sourceFieldType) && isSqlNullType(targetFieldType) {
 		sourcePrimitive := getPrimitiveFromNullType(sourceFieldType)
+
 		targetPrimitive := getPrimitiveFromNullType(targetFieldType)
 		if sourcePrimitive != "" && targetPrimitive != "" {
 			sourceFieldName := getFieldNameForNullType(sourceFieldType)
+
 			targetValueFieldName := getFieldNameForNullType(targetFieldType)
 			if sourcePrimitive == targetPrimitive {
 				return fmt.Sprintf("%s: %s{%s: %s.%s, Valid: %s.Valid}", targetFieldName, targetFieldType, targetValueFieldName, sourceExpr, sourceFieldName, sourceExpr)
@@ -347,9 +376,11 @@ func generateFieldConversion(targetFieldName, targetFieldType, sourceFieldType, 
 		expectedPrimitive := getPrimitiveFromNullType(targetFieldType)
 		if expectedPrimitive == sourceFieldType {
 			fieldName := getFieldNameForNullType(targetFieldType)
+
 			return fmt.Sprintf("%s: %s{%s: %s, Valid: true}", targetFieldName, targetFieldType, fieldName, sourceExpr)
 		} else if expectedPrimitive != "" {
 			fieldName := getFieldNameForNullType(targetFieldType)
+
 			return fmt.Sprintf("%s: %s{%s: %s(%s), Valid: true}", targetFieldName, targetFieldType, fieldName, expectedPrimitive, sourceExpr)
 		}
 	}
@@ -359,9 +390,11 @@ func generateFieldConversion(targetFieldName, targetFieldType, sourceFieldType, 
 		primitive := getPrimitiveFromNullType(sourceFieldType)
 		if primitive == targetFieldType {
 			fieldName := getFieldNameForNullType(sourceFieldType)
+
 			return fmt.Sprintf("%s: %s.%s", targetFieldName, sourceExpr, fieldName)
 		} else if primitive != "" {
 			fieldName := getFieldNameForNullType(sourceFieldType)
+
 			return fmt.Sprintf("%s: %s(%s.%s)", targetFieldName, targetFieldType, sourceExpr, fieldName)
 		}
 	}
@@ -374,6 +407,7 @@ func generateFieldConversion(targetFieldName, targetFieldType, sourceFieldType, 
 	// Case 5b: interface{} source → sql.Null* target (SQLite nullable columns come as interface{})
 	if sourceFieldType == "interface{}" && isSqlNullType(targetFieldType) {
 		primitive := getPrimitiveFromNullType(targetFieldType)
+
 		fieldName := getFieldNameForNullType(targetFieldType)
 		if primitive != "" && fieldName != "" {
 			return fmt.Sprintf(
@@ -396,6 +430,7 @@ func hasSliceField(s StructInfo) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -405,6 +440,7 @@ func getSliceField(s StructInfo) FieldInfo {
 			return f
 		}
 	}
+
 	return FieldInfo{}
 }
 
@@ -420,30 +456,39 @@ func findImportBase(targetDir string) string {
 			if err != nil {
 				log.Fatalf("reading go.mod at %s: %v", goModPath, err)
 			}
+
 			moduleName := ""
+
 			for _, line := range strings.Split(string(data), "\n") {
 				line = strings.TrimSpace(line)
 				if strings.HasPrefix(line, "module ") {
 					moduleName = strings.TrimSpace(strings.TrimPrefix(line, "module "))
+
 					break
 				}
 			}
+
 			if moduleName == "" {
 				log.Fatalf("could not find module directive in %s", goModPath)
 			}
+
 			relPath, err := filepath.Rel(dir, targetDir)
 			if err != nil {
 				log.Fatalf("computing relative path: %v", err)
 			}
+
 			if relPath == "." {
 				return moduleName
 			}
+
 			return moduleName + "/" + relPath
 		}
+
 		parent := filepath.Dir(dir)
 		if parent == dir {
 			log.Fatalf("no go.mod found walking up from %s", targetDir)
 		}
+
 		dir = parent
 	}
 }
@@ -454,24 +499,30 @@ func detectPackageName(dir string) string {
 	if err != nil {
 		return filepath.Base(dir)
 	}
+
 	for _, e := range entries {
 		if e.IsDir() {
 			continue
 		}
+
 		name := e.Name()
 		if !strings.HasSuffix(name, ".go") {
 			continue
 		}
+
 		if strings.HasPrefix(name, "generated_") {
 			continue
 		}
+
 		if strings.HasSuffix(name, "_test.go") {
 			continue
 		}
+
 		data, err := os.ReadFile(filepath.Join(dir, name))
 		if err != nil {
 			continue
 		}
+
 		for _, line := range strings.Split(string(data), "\n") {
 			line = strings.TrimSpace(line)
 			if strings.HasPrefix(line, "package ") {
@@ -480,10 +531,12 @@ func detectPackageName(dir string) string {
 				if idx := strings.Index(pkg, " "); idx != -1 {
 					pkg = pkg[:idx]
 				}
+
 				return pkg
 			}
 		}
 	}
+
 	return filepath.Base(dir)
 }
 
