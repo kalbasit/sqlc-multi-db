@@ -16,7 +16,6 @@ type Querier interface {
 	// @bulk-for AddBookTag
 	AddBookTags(ctx context.Context, arg AddBookTagsParams) error
 
-
 	// CreateBook creates a new book.
 	// INSERT INTO books ("title", "author", "description") VALUES ($1, $2, $3) RETURNING "id", "title", "author", "description", "created_at", "updated_at"
 	CreateBook(ctx context.Context, arg CreateBookParams) (Book, error)

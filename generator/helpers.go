@@ -134,6 +134,98 @@ func JoinParamsCall(
 	return joinParamsCall(params, engPkg, targetMethod, targetStructs, sourceStructs)
 }
 
+// findSourceField finds a matching field in source struct using multiple strategies:
+// 1. Exact name match
+// 2. Case-insensitive match
+// 3. Snake_case match
+// 4. Position-based match (fallback when structs have same field count).
+func findSourceField(
+	targetField FieldInfo,
+	targetIdx int,
+	targetStruct StructInfo,
+	sourceStruct StructInfo,
+) (FieldInfo, bool) {
+	// Strategy 1: Exact name match
+	for _, sf := range sourceStruct.Fields {
+		if sf.Name == targetField.Name {
+			return sf, true
+		}
+	}
+
+	// Strategy 2: Case-insensitive match
+	for _, sf := range sourceStruct.Fields {
+		if strings.EqualFold(sf.Name, targetField.Name) {
+			return sf, true
+		}
+	}
+
+	// Strategy 3: Snake_case match
+	targetSnake := toSnakeCase(targetField.Name)
+	for _, sf := range sourceStruct.Fields {
+		if toSnakeCase(sf.Name) == targetSnake {
+			return sf, true
+		}
+	}
+
+	// Strategy 4: Position-based match (fallback when structs have same field count)
+	// Only use position matching if the structs have the same number of fields
+	if len(sourceStruct.Fields) == len(targetStruct.Fields) && len(sourceStruct.Fields) > 0 {
+		// Match by position - use the field at the same index in source
+		if targetIdx < len(sourceStruct.Fields) {
+			sf := sourceStruct.Fields[targetIdx]
+			// Verify types are compatible
+			if fieldsCompatible(sf.Type, targetField.Type) {
+				return sf, true
+			}
+		}
+	}
+
+	return FieldInfo{}, false
+}
+
+// fieldsCompatible checks if two field types are compatible for mapping.
+func fieldsCompatible(sourceType, targetType string) bool {
+	// Normalize types for comparison
+	sourceBase := normalizeType(sourceType)
+	targetBase := normalizeType(targetType)
+
+	return sourceBase == targetBase
+}
+
+// normalizeType normalizes a type string for comparison.
+func normalizeType(t string) string {
+	// Remove common prefixes/suffixes
+	t = strings.TrimPrefix(t, "[]")
+	t = strings.TrimPrefix(t, "*")
+
+	// Handle time types
+	if strings.Contains(t, "time.Time") || strings.Contains(t, "NullTime") {
+		return "time"
+	}
+
+	// Handle numeric types
+	switch t {
+	case typeInt, "int8", "int16", "int32", "int64",
+		"uint", "uint8", "uint16", "uint32", "uint64",
+		sqlNullInt32, sqlNullInt64:
+		return typeInt
+	case "float32", "float64", sqlNullFloat64:
+		return "float"
+	case typeString, sqlNullString, typeBytes:
+		return typeString
+	case typeBool, sqlNullBool:
+		return typeBool
+	}
+
+	// Remove package prefix if present
+	parts := strings.Split(t, ".")
+	if len(parts) > 1 {
+		return parts[len(parts)-1]
+	}
+
+	return t
+}
+
 func joinDomainStructParam(
 	param Param,
 	i int,
@@ -153,23 +245,22 @@ func joinDomainStructParam(
 
 	if targetParamType != "" {
 		sourceStruct := sourceStructs[param.Type]
-		targetStruct := targetStructs[targetParamType]
+		// Target struct keys may include the package prefix (e.g., "mysqldb.GetStuckNarFilesParams")
+		// Try with prefix first, then without
+		targetStructKey := targetParamType
+		if engPkg != "" {
+			if _, ok := targetStructs[engPkg+"."+targetParamType]; ok {
+				targetStructKey = engPkg + "." + targetParamType
+			}
+			// Otherwise keep using targetParamType (no prefix)
+		}
+
+		targetStruct := targetStructs[targetStructKey]
 
 		var fields []string
 
-		for _, targetField := range targetStruct.Fields {
-			var sourceField FieldInfo
-
-			found := false
-
-			for _, sf := range sourceStruct.Fields {
-				if sf.Name == targetField.Name {
-					sourceField = sf
-					found = true
-
-					break
-				}
-			}
+		for targetIdx, targetField := range targetStruct.Fields {
+			sourceField, found := findSourceField(targetField, targetIdx, targetStruct, sourceStruct)
 
 			if found {
 				conversion := generateFieldConversion(

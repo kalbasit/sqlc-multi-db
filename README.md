@@ -90,6 +90,7 @@ SELECT unnest(@book_ids::bigint[]), unnest(@tag_ids::bigint[]);
 ```
 
 The generator will:
+
 - On **PostgreSQL**: delegate `AddBookTags` directly to the underlying sqlc implementation
 - On **SQLite/MySQL**: generate a loop that calls `AddBookTag` once per element
 

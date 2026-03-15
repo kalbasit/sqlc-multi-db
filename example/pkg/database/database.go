@@ -10,9 +10,9 @@ import (
 	"github.com/kalbasit/sqlc-multi-db/example/pkg/database/postgresdb"
 	"github.com/kalbasit/sqlc-multi-db/example/pkg/database/sqlitedb"
 
-	_ "github.com/go-sql-driver/mysql"      // MySQL driver
-	_ "github.com/jackc/pgx/v5/stdlib"      // PostgreSQL driver
-	_ "github.com/mattn/go-sqlite3"          // SQLite driver
+	_ "github.com/go-sql-driver/mysql" // MySQL driver
+	_ "github.com/jackc/pgx/v5/stdlib" // PostgreSQL driver
+	_ "github.com/mattn/go-sqlite3"    // SQLite driver
 )
 
 // Open opens a database connection and returns a Querier.

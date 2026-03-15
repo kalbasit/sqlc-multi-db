@@ -553,3 +553,80 @@ func TestGenerateFieldConversion(t *testing.T) {
 		})
 	}
 }
+
+// TestJoinParamsCallFieldMapping tests that JoinParamsCall correctly maps
+// struct fields even when field names differ between source and target.
+// This is a regression test for the MySQL LIMIT parameter issue where
+// sqlc generates different field names (e.g., BatchSize vs Limit).
+func TestJoinParamsCallFieldMapping(t *testing.T) {
+	t.Parallel()
+
+	// Source structs (domain) - what the wrapper API uses
+	sourceStructs := map[string]generator.StructInfo{
+		"GetStuckNarFilesParams": {
+			Name: "GetStuckNarFilesParams",
+			Fields: []generator.FieldInfo{
+				{Name: "CutoffTime", Type: "time.Time"},
+				{Name: "BatchSize", Type: "int32"},
+			},
+		},
+	}
+
+	// Target structs (adapter) - what the database engine generates
+	// MySQL generates different names: CreatedAt instead of CutoffTime, Limit instead of BatchSize
+	targetStructs := map[string]generator.StructInfo{
+		"GetStuckNarFilesParams": {
+			Name: "GetStuckNarFilesParams",
+			Fields: []generator.FieldInfo{
+				{Name: "CreatedAt", Type: "time.Time"},
+				{Name: "Limit", Type: "int32"},
+			},
+		},
+	}
+
+	// Target method info
+	targetMethod := generator.MethodInfo{
+		Name: "GetStuckNarFiles",
+		Params: []generator.Param{
+			{Name: "ctx", Type: "context.Context"},
+			{Name: "arg", Type: "GetStuckNarFilesParams"},
+		},
+	}
+
+	tests := []struct {
+		name    string
+		params  []generator.Param
+		engPkg  string
+		want    string
+		wantErr bool
+	}{
+		{
+			name: "Field mapping with different names",
+			params: []generator.Param{
+				{Name: "ctx", Type: "context.Context"},
+				{Name: "arg", Type: "GetStuckNarFilesParams"},
+			},
+			engPkg: "mysqldb",
+			// Expected: both fields should be mapped even though names differ
+			// The target struct uses its own field names (CreatedAt, Limit), not source names
+			want: "ctx, mysqldb.GetStuckNarFilesParams{\nCreatedAt: arg.CutoffTime,\nLimit: arg.BatchSize,\n}",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := generator.JoinParamsCall(tt.params, tt.engPkg, targetMethod, targetStructs, sourceStructs)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("JoinParamsCall() error = %v, wantErr %v", err, tt.wantErr)
+
+				return
+			}
+
+			if got != tt.want {
+				t.Errorf("JoinParamsCall() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
