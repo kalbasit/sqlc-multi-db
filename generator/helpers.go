@@ -134,26 +134,26 @@ func JoinParamsCall(
 	return joinParamsCall(params, engPkg, targetMethod, targetStructs, sourceStructs)
 }
 
-// findSourceField finds a matching field in source struct using multiple strategies:
+// findSourceField finds a matching field in available source fields using multiple strategies:
 // 1. Exact name match
 // 2. Case-insensitive match
 // 3. Snake_case match
 // 4. Position-based match (fallback when structs have same field count).
+// The availableSourceFields map is modified to remove matched fields.
 func findSourceField(
 	targetField FieldInfo,
 	targetIdx int,
 	targetStruct StructInfo,
 	sourceStruct StructInfo,
+	availableSourceFields map[string]FieldInfo,
 ) (FieldInfo, bool) {
 	// Strategy 1: Exact name match
-	for _, sf := range sourceStruct.Fields {
-		if sf.Name == targetField.Name {
-			return sf, true
-		}
+	if sf, ok := availableSourceFields[targetField.Name]; ok {
+		return sf, true
 	}
 
 	// Strategy 2: Case-insensitive match
-	for _, sf := range sourceStruct.Fields {
+	for _, sf := range availableSourceFields {
 		if strings.EqualFold(sf.Name, targetField.Name) {
 			return sf, true
 		}
@@ -161,7 +161,7 @@ func findSourceField(
 
 	// Strategy 3: Snake_case match
 	targetSnake := toSnakeCase(targetField.Name)
-	for _, sf := range sourceStruct.Fields {
+	for _, sf := range availableSourceFields {
 		if toSnakeCase(sf.Name) == targetSnake {
 			return sf, true
 		}
@@ -169,15 +169,23 @@ func findSourceField(
 
 	// Strategy 4: Position-based match (fallback when structs have same field count)
 	// Only use position matching if the structs have the same number of fields
-	if len(sourceStruct.Fields) == len(targetStruct.Fields) && len(sourceStruct.Fields) > 0 {
-		// Match by position - use the field at the same index in source
-		if targetIdx < len(sourceStruct.Fields) {
-			sf := sourceStruct.Fields[targetIdx]
-			// Verify types are compatible
-			if fieldsCompatible(sf.Type, targetField.Type) {
-				return sf, true
-			}
-		}
+	if len(sourceStruct.Fields) != len(targetStruct.Fields) || len(sourceStruct.Fields) == 0 {
+		return FieldInfo{}, false
+	}
+	// Match by position - use the field at the same index in source
+	if targetIdx >= len(sourceStruct.Fields) {
+		return FieldInfo{}, false
+	}
+
+	originalSourceField := sourceStruct.Fields[targetIdx]
+	// Check if it's still available
+	sf, ok := availableSourceFields[originalSourceField.Name]
+	if !ok {
+		return FieldInfo{}, false
+	}
+	// Verify types are compatible
+	if fieldsCompatible(sf.Type, targetField.Type) {
+		return sf, true
 	}
 
 	return FieldInfo{}, false
@@ -257,10 +265,16 @@ func joinDomainStructParam(
 
 		targetStruct := targetStructs[targetStructKey]
 
+		// Create a map of available source fields to track which fields have been mapped.
+		availableSourceFields := make(map[string]FieldInfo, len(sourceStruct.Fields))
+		for _, sf := range sourceStruct.Fields {
+			availableSourceFields[sf.Name] = sf
+		}
+
 		var fields []string
 
 		for targetIdx, targetField := range targetStruct.Fields {
-			sourceField, found := findSourceField(targetField, targetIdx, targetStruct, sourceStruct)
+			sourceField, found := findSourceField(targetField, targetIdx, targetStruct, sourceStruct, availableSourceFields)
 
 			if found {
 				conversion := generateFieldConversion(
@@ -270,6 +284,8 @@ func joinDomainStructParam(
 					fmt.Sprintf("%s.%s", param.Name, sourceField.Name),
 				)
 				fields = append(fields, conversion)
+				// Remove the mapped field so it can't be used again.
+				delete(availableSourceFields, sourceField.Name)
 			}
 		}
 
