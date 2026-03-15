@@ -8,10 +8,8 @@ import (
 	"github.com/mattn/go-sqlite3"
 )
 
-var (
-	// ErrUnsupportedDriver is returned when the database driver is not recognized.
-	ErrUnsupportedDriver = errors.New("unsupported database driver")
-)
+// ErrUnsupportedDriver is returned when the database driver is not recognized.
+var ErrUnsupportedDriver = errors.New("unsupported database driver")
 
 // IsDeadlockError checks if the error is a deadlock or "database busy" error.
 func IsDeadlockError(err error) bool {

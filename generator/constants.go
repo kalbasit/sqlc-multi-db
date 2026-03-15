@@ -5,6 +5,8 @@ const (
 	typeAny     = "interface{}"
 	typeBool    = "bool"
 	typeString  = "string"
+	typeInt     = "int"
+	typeBytes   = "[]byte"
 	zeroNil     = "nil"
 	typeInt16   = "int16"
 	typeInt32   = "int32"
