@@ -18,13 +18,7 @@ import (
 
 // Run is the main entry point for the generator.
 // querierPath is the path to the source querier.go file (e.g., postgresdb/querier.go).
-func Run(querierPath string) {
-	engines := []Engine{
-		{Name: "sqlite", Package: "sqlitedb"},
-		{Name: "postgres", Package: "postgresdb"},
-		{Name: "mysql", Package: "mysqldb"},
-	}
-
+func Run(querierPath string, engines []Engine) {
 	absQuerierPath, err := filepath.Abs(querierPath)
 	if err != nil {
 		log.Fatalf("resolving querier path: %v", err)
