@@ -9,9 +9,7 @@ When using sqlc with multiple database backends, each engine generates its own `
 - `generated_querier.go` — a common `Querier` interface in the parent package
 - `generated_models.go` — common domain model types (converted from engine-specific types)
 - `generated_errors.go` — shared sentinel errors (`ErrNotFound`, `ErrMismatchedSlices`)
-- `generated_wrapper_sqlite.go` — SQLite wrapper implementing the common `Querier`
-- `generated_wrapper_postgres.go` — PostgreSQL wrapper implementing the common `Querier`
-- `generated_wrapper_mysql.go` — MySQL/MariaDB wrapper implementing the common `Querier`
+- `generated_wrapper_<engine>.go` — one wrapper per engine, implementing the common `Querier`
 
 The wrappers handle engine differences automatically:
 
@@ -23,8 +21,8 @@ The wrappers handle engine differences automatically:
 ## Requirements
 
 - Go 1.24+ (uses the `tool` directive in `go.mod`)
-- sqlc with queries for all three engines: `query.sqlite.sql`, `query.postgres.sql`, `query.mysql.sql`
-- sqlc output packages named `sqlitedb`, `postgresdb`, `mysqldb` (siblings of the target package)
+- sqlc with queries for the engines you need (e.g. `query.sqlite.sql`, `query.postgres.sql`)
+- sqlc output packages named to match the `--engine` flags you pass (siblings of the target package)
 
 ## Installation
 
@@ -44,12 +42,39 @@ require github.com/kalbasit/sqlc-multi-db vX.Y.Z
 
 ## Usage
 
+```
+sqlc-multi-db --engine name:package [--engine ...] /path/to/source/querier.go
+```
+
+The `--engine` flag is **repeatable** and takes the form `name:package`:
+
+- `name` — engine identifier used in generated file names (e.g. `sqlite`, `postgres`, `mysql`)
+- `package` — directory name of the sqlc-generated package for that engine (e.g. `sqlitedb`, `postgresdb`)
+
+At least one `--engine` flag is required; the tool exits with an error if none are provided.
+
+### Examples
+
+SQLite + PostgreSQL only:
+
+```bash
+go tool github.com/kalbasit/sqlc-multi-db --engine sqlite:sqlitedb --engine postgres:postgresdb postgresdb/querier.go
+```
+
+All three engines:
+
+```bash
+go tool github.com/kalbasit/sqlc-multi-db --engine sqlite:sqlitedb --engine postgres:postgresdb --engine mysql:mysqldb postgresdb/querier.go
+```
+
+### go:generate
+
 Add a `generate.go` file in your database package (e.g., `pkg/database/generate.go`):
 
 ```go
 package database
 
-//go:generate go tool github.com/kalbasit/sqlc-multi-db postgresdb/querier.go
+//go:generate go tool github.com/kalbasit/sqlc-multi-db --engine sqlite:sqlitedb --engine postgres:postgresdb postgresdb/querier.go
 ```
 
 Then run:
@@ -64,16 +89,14 @@ go generate ./pkg/database
 pkg/database/
   sqlitedb/        # sqlc-generated (sqlite engine)
   postgresdb/      # sqlc-generated (postgres engine)  ← source of truth
-  mysqldb/         # sqlc-generated (mysql engine)
   database.go      # your Open() factory
   errors.go        # your custom errors (IsDeadlockError, etc.)
   generate.go      # //go:generate directive
-  generated_errors.go        # generated
-  generated_models.go        # generated
-  generated_querier.go       # generated
+  generated_errors.go           # generated
+  generated_models.go           # generated
+  generated_querier.go          # generated
   generated_wrapper_sqlite.go   # generated
   generated_wrapper_postgres.go # generated
-  generated_wrapper_mysql.go    # generated
 ```
 
 ## Bulk Operations (`@bulk-for`)
@@ -122,7 +145,10 @@ The generator logic is also available as a library:
 ```go
 import "github.com/kalbasit/sqlc-multi-db/generator"
 
-generator.Run("/path/to/postgresdb/querier.go")
+generator.Run("/path/to/postgresdb/querier.go", []generator.Engine{
+    {Name: "sqlite", Package: "sqlitedb"},
+    {Name: "postgres", Package: "postgresdb"},
+})
 ```
 
 ## License
