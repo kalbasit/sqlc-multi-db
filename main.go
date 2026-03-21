@@ -46,16 +46,12 @@ func main() {
 
 	flag.Parse()
 
-	if len(engines) == 0 {
-		log.Fatalf("USAGE: sqlc-multi-db --engine name:package [--engine ...] /path/to/querier.go")
+	if len(engines) == 0 || flag.NArg() != 1 {
+		flag.Usage()
+		os.Exit(1)
 	}
 
-	args := flag.Args()
-	if len(args) == 0 {
-		log.Fatalf("USAGE: sqlc-multi-db --engine name:package [--engine ...] /path/to/querier.go")
-	}
-
-	querierPath := args[0]
+	querierPath := flag.Arg(0)
 
 	if _, err := os.Stat(querierPath); err != nil {
 		log.Fatalf("stat(%q): %s", querierPath, err)

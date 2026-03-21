@@ -58,13 +58,13 @@ At least one `--engine` flag is required; the tool exits with an error if none a
 SQLite + PostgreSQL only:
 
 ```bash
-go tool sqlc-multi-db --engine sqlite:sqlitedb --engine postgres:postgresdb postgresdb/querier.go
+go tool github.com/kalbasit/sqlc-multi-db --engine sqlite:sqlitedb --engine postgres:postgresdb postgresdb/querier.go
 ```
 
 All three engines:
 
 ```bash
-go tool sqlc-multi-db --engine sqlite:sqlitedb --engine postgres:postgresdb --engine mysql:mysqldb postgresdb/querier.go
+go tool github.com/kalbasit/sqlc-multi-db --engine sqlite:sqlitedb --engine postgres:postgresdb --engine mysql:mysqldb postgresdb/querier.go
 ```
 
 ### go:generate
@@ -74,7 +74,7 @@ Add a `generate.go` file in your database package (e.g., `pkg/database/generate.
 ```go
 package database
 
-//go:generate go tool sqlc-multi-db --engine sqlite:sqlitedb --engine postgres:postgresdb postgresdb/querier.go
+//go:generate go tool github.com/kalbasit/sqlc-multi-db --engine sqlite:sqlitedb --engine postgres:postgresdb postgresdb/querier.go
 ```
 
 Then run:
