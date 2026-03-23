@@ -53,10 +53,10 @@ func extractBulkFor(comment string) string {
 
 func toSingular(s string) string { return inflection.Singular(s) }
 
-// fixAcronyms corrects common Go acronym casing issues using word-boundary-aware
+// FixAcronyms corrects common Go acronym casing issues using word-boundary-aware
 // regex replacements to avoid corrupting words that contain acronyms as substrings.
 // For example: Id -> ID, Api -> API, Sql -> SQL, Url -> URL.
-func fixAcronyms(content []byte) []byte {
+func FixAcronyms(content []byte) []byte {
 	// Common Go acronyms that should be all caps, with their correct form.
 	acronymReplacements := []struct {
 		pattern     string
@@ -91,13 +91,20 @@ func fixAcronyms(content []byte) []byte {
 			continue
 		}
 
-		// Match acronym when preceded by a lowercase letter and followed by
-		// a capital letter or end of string. This prevents replacing "Id" in
-		// "Identifier" (where it should stay as "Id") but correctly handles
-		// "userId" -> "userID" and "myId" -> "myID".
-		regex := regexp.MustCompile(`([a-z])(` + r.pattern + `)([A-Z]|$)`)
-		repl := "$1" + r.replacement + "$3"
-		result = regex.ReplaceAllString(result, repl)
+		// Use three patterns to handle acronym in different positions:
+		// 1. `([a-z])(Acronym)([A-Z])` - acronym in middle of camelCase, e.g., "JsonM" in "userJsonM"
+		// 2. `([a-z])(Acronym)$` - acronym at end of identifier, e.g., "Id" in "userId"
+		// 3. `([a-z])(Acronym)([^A-Za-z])` - acronym followed by non-letter (space, punctuation, etc.)
+		regexMid := regexp.MustCompile(`([a-z])(` + r.pattern + `)([A-Z])`)
+		regexEnd := regexp.MustCompile(`([a-z])(` + r.pattern + `)$`)
+		regexNonLetter := regexp.MustCompile(`([a-z])(` + r.pattern + `)([^A-Za-z])`)
+
+		// For middle case: preserve the following uppercase letter via ${3}
+		result = regexMid.ReplaceAllString(result, "${1}"+r.replacement+"${3}")
+		// For non-letter case: preserve the following character via ${3}
+		result = regexNonLetter.ReplaceAllString(result, "${1}"+r.replacement+"${3}")
+		// For end case: no ${3} since there's no following letter
+		result = regexEnd.ReplaceAllString(result, "${1}"+r.replacement)
 	}
 
 	return []byte(result)
@@ -122,7 +129,7 @@ func writeFile(dir, filename string, content []byte) {
 	}
 
 	// 3. Fix acronym casing (Api -> API, Id -> ID, etc.)
-	fixed := fixAcronyms(formatted)
+	fixed := FixAcronyms(formatted)
 
 	if err := os.WriteFile(filepath.Join(dir, filename), fixed, 0o644); err != nil { //nolint:gosec
 		log.Fatal(err)
