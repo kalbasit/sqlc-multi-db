@@ -1,3 +1,4 @@
+//go:generate go tool sqlc-multi-db --engine sqlite:sqlitedb --engine postgres:postgresdb --engine mysql:mysqldb postgresdb/querier.go
 package database
 
 import (
@@ -16,19 +17,23 @@ import (
 )
 
 // Open opens a database connection and returns a Querier.
-// URL schemes: sqlite:/, postgresql://, mysql://
+// URL schemes: sqlite:/, postgresql://, mysql://.
 func Open(ctx context.Context, dbURL string) (Querier, error) {
 	switch {
 	case strings.HasPrefix(dbURL, "sqlite:"):
 		path := strings.TrimPrefix(dbURL, "sqlite:")
+
 		sdb, err := sql.Open("sqlite3", path)
 		if err != nil {
 			return nil, fmt.Errorf("opening sqlite: %w", err)
 		}
+
 		sdb.SetMaxOpenConns(1)
+
 		if _, err := sdb.ExecContext(ctx, "PRAGMA foreign_keys = ON"); err != nil {
 			return nil, fmt.Errorf("enabling foreign keys: %w", err)
 		}
+
 		return &sqliteWrapper{adapter: sqlitedb.NewAdapter(sdb)}, nil
 
 	case strings.HasPrefix(dbURL, "postgres://"), strings.HasPrefix(dbURL, "postgresql://"):
@@ -36,14 +41,17 @@ func Open(ctx context.Context, dbURL string) (Querier, error) {
 		if err != nil {
 			return nil, fmt.Errorf("opening postgres: %w", err)
 		}
+
 		return &postgresWrapper{adapter: postgresdb.NewAdapter(sdb)}, nil
 
 	case strings.HasPrefix(dbURL, "mysql://"):
 		dsn := strings.TrimPrefix(dbURL, "mysql://")
+
 		sdb, err := sql.Open("mysql", dsn)
 		if err != nil {
 			return nil, fmt.Errorf("opening mysql: %w", err)
 		}
+
 		return &mysqlWrapper{adapter: mysqldb.NewAdapter(sdb)}, nil
 
 	default:

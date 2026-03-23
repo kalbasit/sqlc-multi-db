@@ -1,12 +1,13 @@
 module github.com/kalbasit/sqlc-multi-db/example
 
-go 1.25.5
+go 1.25.7
 
 tool github.com/kalbasit/sqlc-multi-db
 
 require (
 	github.com/go-sql-driver/mysql v1.9.2
 	github.com/jackc/pgx/v5 v5.7.4
+	github.com/lib/pq v1.12.0
 	github.com/mattn/go-sqlite3 v1.14.28
 )
 
