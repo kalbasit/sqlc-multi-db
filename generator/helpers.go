@@ -58,7 +58,7 @@ func toSingular(s string) string { return inflection.Singular(s) }
 // For example: Id -> ID, Api -> API, Sql -> SQL, Url -> URL.
 func FixAcronyms(content []byte) []byte {
 	// Common Go acronyms that should be all caps, with their correct form.
-	acronymReplacements := []struct {
+	acronyms := []struct {
 		pattern     string
 		replacement string
 	}{
@@ -73,7 +73,6 @@ func FixAcronyms(content []byte) []byte {
 		{"Ip", "IP"},
 		{"Json", "JSON"},
 		{"Jwt", "JWT"},
-		{"S3", "S3"}, // already correct, included for completeness
 		{"Sql", "SQL"},
 		{"Ssh", "SSH"},
 		{"Tcp", "TCP"},
@@ -85,26 +84,22 @@ func FixAcronyms(content []byte) []byte {
 
 	result := string(content)
 
-	for _, r := range acronymReplacements {
-		// Only process if the pattern differs from replacement (skip already-correct cases)
-		if r.pattern == r.replacement {
-			continue
-		}
+	for _, a := range acronyms {
+		// Pre-compile regexes once per acronym (not inside inner loop).
+		// Use three patterns to handle acronyms in different positions:
+		// 1. Mid: `([a-z])(Acronym)([A-Z])` - acronym in middle of camelCase.
+		// 2. End: `([a-z])(Acronym)$` - acronym at end of identifier.
+		// 3. NonLetter: `([a-z])(Acronym)([^A-Za-z])` - acronym followed by non-letter.
+		regexMid := regexp.MustCompile(`([a-z])(` + a.pattern + `)([A-Z])`)
+		regexEnd := regexp.MustCompile(`([a-z])(` + a.pattern + `)$`)
+		regexNonLetter := regexp.MustCompile(`([a-z])(` + a.pattern + `)([^A-Za-z])`)
 
-		// Use three patterns to handle acronym in different positions:
-		// 1. `([a-z])(Acronym)([A-Z])` - acronym in middle of camelCase, e.g., "JsonM" in "userJsonM"
-		// 2. `([a-z])(Acronym)$` - acronym at end of identifier, e.g., "Id" in "userId"
-		// 3. `([a-z])(Acronym)([^A-Za-z])` - acronym followed by non-letter (space, punctuation, etc.)
-		regexMid := regexp.MustCompile(`([a-z])(` + r.pattern + `)([A-Z])`)
-		regexEnd := regexp.MustCompile(`([a-z])(` + r.pattern + `)$`)
-		regexNonLetter := regexp.MustCompile(`([a-z])(` + r.pattern + `)([^A-Za-z])`)
-
-		// For middle case: preserve the following uppercase letter via ${3}
-		result = regexMid.ReplaceAllString(result, "${1}"+r.replacement+"${3}")
-		// For non-letter case: preserve the following character via ${3}
-		result = regexNonLetter.ReplaceAllString(result, "${1}"+r.replacement+"${3}")
-		// For end case: no ${3} since there's no following letter
-		result = regexEnd.ReplaceAllString(result, "${1}"+r.replacement)
+		// For middle case: preserve the following uppercase letter via ${3}.
+		result = regexMid.ReplaceAllString(result, "${1}"+a.replacement+"${3}")
+		// For non-letter case: preserve the following character via ${3}.
+		result = regexNonLetter.ReplaceAllString(result, "${1}"+a.replacement+"${3}")
+		// For end case: no ${3} since there's no following letter.
+		result = regexEnd.ReplaceAllString(result, "${1}"+a.replacement)
 	}
 
 	return []byte(result)
