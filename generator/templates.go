@@ -123,16 +123,24 @@ func (w *{{$.Engine.Name}}Wrapper) {{.Name}}({{joinParamsSignature .Params}}) ({
 		for i, v := range {{(index .Params 1).Name}}.{{$sliceField.Name}} {
 			_ = i
 			err := w.adapter.{{$singularMethodName}}({{(index .Params 0).Name}}, {{$.Engine.Package}}.{{$targetSingularParamType}}{
-				{{range $targetStructField := $targetStructInfo.Fields}}
-					{{/* Find matching field in bulk (source) struct */}}
+				{{range $targetIdx, $targetField := $targetStructInfo.Fields}}
+					{{/* Find matching field in bulk (source) struct by name */}}
 					{{$sourceField := dict "Name" ""}}
-					{{range $bulkStructInfo.Fields}}
-						{{if eq .Name $targetStructField.Name}}
-							{{$sourceField = .}}
+					{{$matchedIdx := -1}}
+					{{range $bulkIdx, $bulkField := $bulkStructInfo.Fields}}
+						{{if eq $bulkField.Name $targetField.Name}}
+							{{$sourceField = $bulkField}}
+							{{$matchedIdx = $bulkIdx}}
 						{{end}}
-						{{if and (eq $sourceField.Name "") (eq (toSingular .Name) $targetStructField.Name)}}
-							{{$sourceField = .}}
+						{{if and (eq $sourceField.Name "") (eq (toSingular $bulkField.Name) $targetField.Name)}}
+							{{$sourceField = $bulkField}}
+							{{$matchedIdx = $bulkIdx}}
 						{{end}}
+					{{end}}
+					{{/* Fall back to positional matching if name matching failed */}}
+					{{if eq $sourceField.Name ""}}
+						{{$sourceField = index $bulkStructInfo.Fields $targetIdx}}
+						{{$matchedIdx = $targetIdx}}
 					{{end}}
 					{{if ne $sourceField.Name ""}}
 						{{$srcExpr := ""}}
@@ -147,7 +155,7 @@ func (w *{{$.Engine.Name}}Wrapper) {{.Name}}({{joinParamsSignature .Params}}) ({
 						{{if or (eq $sourceField.Name $sliceField.Name) (isSlice $sourceField.Type)}}
 							{{$srcType = trimPrefix $srcType "[]"}}
 						{{end}}
-						{{generateFieldConversion $targetStructField.Name $targetStructField.Type $srcType $srcExpr}},
+						{{generateFieldConversion $targetField.Name $targetField.Type $srcType $srcExpr}},
 					{{end}}
 				{{end}}
 				},

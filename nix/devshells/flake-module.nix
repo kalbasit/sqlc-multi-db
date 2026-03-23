@@ -12,6 +12,7 @@
           pkgs.go
           pkgs.golangci-lint
           pkgs.pre-commit
+          pkgs.sqlc
         ];
 
         _GO_VERSION = "${pkgs.go.version}";
@@ -25,6 +26,10 @@
 
           if [[ "$(${pkgs.gnugrep}/bin/grep '^\(go \)[0-9.]*$' go.mod)" != "go ''${_GO_VERSION}" ]]; then
             ${pkgs.gnused}/bin/sed -e "s:^\(go \)[0-9.]*$:\1''${_GO_VERSION}:" -i go.mod
+          fi
+
+          if [[ "$(${pkgs.gnugrep}/bin/grep '^\(go \)[0-9.]*$' example/go.mod)" != "go ''${_GO_VERSION}" ]]; then
+            ${pkgs.gnused}/bin/sed -e "s:^\(go \)[0-9.]*$:\1''${_GO_VERSION}:" -i example/go.mod
           fi
         '';
       };
