@@ -58,7 +58,7 @@ VALUES ($1, $2);
 -- INSERT INTO book_tags ("book_id", "tag_id") VALUES (unnest($1::bigint[]), unnest($2::bigint[]))
 -- @bulk-for AddBookTag
 INSERT INTO book_tags ("book_id", "tag_id")
-VALUES (unnest($1::bigint[]), unnest($2::bigint[]));
+VALUES (unnest(sqlc.arg(book_ids)::bigint[]), unnest(sqlc.arg(tag_ids)::bigint[]));
 
 -- name: GetBookTags :many
 -- SELECT t."id", t."name", t."created_at", t."updated_at" FROM tags t INNER JOIN book_tags bt ON t.id = bt.tag_id WHERE bt.book_id = $1

@@ -37,8 +37,8 @@ VALUES (unnest($1::bigint[]), unnest($2::bigint[]))
 `
 
 type AddBookTagsParams struct {
-	Column1 []int64
-	Column2 []int64
+	BookIds []int64
+	TagIds  []int64
 }
 
 // INSERT INTO book_tags ("book_id", "tag_id") VALUES (unnest($1::bigint[]), unnest($2::bigint[]))
@@ -47,7 +47,7 @@ type AddBookTagsParams struct {
 //	INSERT INTO book_tags ("book_id", "tag_id")
 //	VALUES (unnest($1::bigint[]), unnest($2::bigint[]))
 func (q *Queries) AddBookTags(ctx context.Context, arg AddBookTagsParams) error {
-	_, err := q.db.ExecContext(ctx, addBookTags, pq.Array(arg.Column1), pq.Array(arg.Column2))
+	_, err := q.db.ExecContext(ctx, addBookTags, pq.Array(arg.BookIds), pq.Array(arg.TagIds))
 	return err
 }
 

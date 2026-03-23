@@ -12,8 +12,8 @@ type AddBookTagParams struct {
 }
 
 type AddBookTagsParams struct {
-	Column1 []int64
-	Column2 []int64
+	BookIds []int64
+	TagIds  []int64
 }
 
 type Book struct {

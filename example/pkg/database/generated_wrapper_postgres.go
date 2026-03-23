@@ -29,13 +29,13 @@ func (w *postgresWrapper) AddBookTag(ctx context.Context, arg AddBookTagParams) 
 func (w *postgresWrapper) AddBookTags(ctx context.Context, arg AddBookTagsParams) error {
 	/* --- Auto-Loop for Bulk Insert on Non-Postgres --- */
 
-	if len(arg.Column2) != len(arg.Column1) {
+	if len(arg.TagIds) != len(arg.BookIds) {
 		return ErrMismatchedSlices
 	}
 
 	return w.adapter.AddBookTags(ctx, postgresdb.AddBookTagsParams{
-		Column1: arg.Column1,
-		Column2: arg.Column2,
+		BookIds: arg.BookIds,
+		TagIds:  arg.TagIds,
 	})
 }
 
