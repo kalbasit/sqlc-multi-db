@@ -59,7 +59,7 @@ func (w *mysqlWrapper) CreateBook(ctx context.Context, arg CreateBookParams) (Bo
 		return Book{}, err
 	}
 
-	id, err := res.LastInsertID()
+	id, err := res.LastInsertId()
 	if err != nil {
 		return Book{}, err
 	}
@@ -89,7 +89,7 @@ func (w *mysqlWrapper) CreateTag(ctx context.Context, name string) (Tag, error) 
 		return Tag{}, err
 	}
 
-	id, err := res.LastInsertID()
+	id, err := res.LastInsertId()
 	if err != nil {
 		return Tag{}, err
 	}

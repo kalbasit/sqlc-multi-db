@@ -92,11 +92,19 @@ func FixAcronyms(content []byte) []byte {
 		// 3. Mid: `([a-z])(Acronym)([A-Z])` - acronym in middle of camelCase, e.g., Id in userIdMore.
 		// 4. End: `([a-z])(Acronym)$` - acronym at end of identifier, e.g., Id in userId.
 		// 5. NonLetter: `([a-z])(Acronym)([^A-Za-z])` - acronym followed by non-letter.
+		//    For Id, we exclude '(' to avoid transforming method calls like LastInsertId().
 		regexStart := regexp.MustCompile(`^(` + a.pattern + `)([A-Z])`)
 		regexAfterUpper := regexp.MustCompile(`([A-Z])(` + a.pattern + `)([A-Z])`)
 		regexMid := regexp.MustCompile(`([a-z])(` + a.pattern + `)([A-Z])`)
 		regexEnd := regexp.MustCompile(`([a-z])(` + a.pattern + `)$`)
-		regexNonLetter := regexp.MustCompile(`([a-z])(` + a.pattern + `)([^A-Za-z])`)
+
+		// For Id, exclude '(' to preserve method calls like res.LastInsertId()
+		nonLetterClass := `[^A-Za-z]`
+		if a.pattern == "Id" {
+			nonLetterClass = `[^A-Za-z(]`
+		}
+
+		regexNonLetter := regexp.MustCompile(`([a-z])(` + a.pattern + `)(` + nonLetterClass + `)`)
 
 		// Start case: replace with replacement followed by ${2} (the uppercase after).
 		result = regexStart.ReplaceAllString(result, a.replacement+"${2}")
@@ -124,7 +132,7 @@ func writeFile(dir, filename string, content []byte) {
 	// 2. Format with gofumpt
 	formatted, err := format.Source(withImports, format.Options{
 		LangVersion: "",
-		ExtraRules:  true,
+		ExtraRules:  false,
 	})
 	if err != nil {
 		log.Println(string(withImports))

@@ -109,6 +109,31 @@ func TestFixAcronyms(t *testing.T) {
 			input:    "",
 			expected: "",
 		},
+		{
+			name:     "LastInsertId in method call should not be transformed",
+			input:    "res.LastInsertId()",
+			expected: "res.LastInsertId()",
+		},
+		{
+			name:     "SetId in method call should not be transformed",
+			input:    "obj.SetId(123)",
+			expected: "obj.SetId(123)",
+		},
+		{
+			name:     "userId in variable assignment should become userID",
+			input:    "userId = 123",
+			expected: "userID = 123",
+		},
+		{
+			name:     "imageUrl in struct literal should become imageURL",
+			input:    "imageUrl: \"https://example.com\"",
+			expected: "imageURL: \"https://example.com\"",
+		},
+		{
+			name:     "profileUrl in assignment should become profileURL",
+			input:    "profileUrl = \"https://example.com\"",
+			expected: "profileURL = \"https://example.com\"",
+		},
 	}
 
 	for _, tt := range tests {
