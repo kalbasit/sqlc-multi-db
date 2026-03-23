@@ -49,7 +49,7 @@ func (w *mysqlWrapper) CreateBook(ctx context.Context, arg CreateBookParams) (Bo
 	/* --- Auto-Loop for Bulk Insert on Non-Postgres --- */
 
 	// MySQL does not support RETURNING for INSERTs.
-	// We insert, get LastInsertId, and then fetch the object.
+	// We insert, get LastInsertID, and then fetch the object.
 	res, err := w.adapter.CreateBook(ctx, mysqldb.CreateBookParams{
 		Title:       arg.Title,
 		Author:      arg.Author,
@@ -59,7 +59,7 @@ func (w *mysqlWrapper) CreateBook(ctx context.Context, arg CreateBookParams) (Bo
 		return Book{}, err
 	}
 
-	id, err := res.LastInsertId()
+	id, err := res.LastInsertID()
 	if err != nil {
 		return Book{}, err
 	}
@@ -83,13 +83,13 @@ func (w *mysqlWrapper) CreateTag(ctx context.Context, name string) (Tag, error) 
 	/* --- Auto-Loop for Bulk Insert on Non-Postgres --- */
 
 	// MySQL does not support RETURNING for INSERTs.
-	// We insert, get LastInsertId, and then fetch the object.
+	// We insert, get LastInsertID, and then fetch the object.
 	res, err := w.adapter.CreateTag(ctx, name)
 	if err != nil {
 		return Tag{}, err
 	}
 
-	id, err := res.LastInsertId()
+	id, err := res.LastInsertID()
 	if err != nil {
 		return Tag{}, err
 	}
