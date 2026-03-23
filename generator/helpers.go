@@ -55,7 +55,7 @@ func toSingular(s string) string { return inflection.Singular(s) }
 
 // FixAcronyms corrects common Go acronym casing issues using word-boundary-aware
 // regex replacements to avoid corrupting words that contain acronyms as substrings.
-// For example: Id -> ID, Api -> API, Sql -> SQL, Url -> URL.
+// For example: Id -> ID, Api -> API, Sql -> SQL, Url -> URL, Xml -> XML.
 func FixAcronyms(content []byte) []byte {
 	// Common Go acronyms that should be all caps, with their correct form.
 	acronyms := []struct {
@@ -86,19 +86,27 @@ func FixAcronyms(content []byte) []byte {
 
 	for _, a := range acronyms {
 		// Pre-compile regexes once per acronym (not inside inner loop).
-		// Use three patterns to handle acronyms in different positions:
-		// 1. Mid: `([a-z])(Acronym)([A-Z])` - acronym in middle of camelCase.
-		// 2. End: `([a-z])(Acronym)$` - acronym at end of identifier.
-		// 3. NonLetter: `([a-z])(Acronym)([^A-Za-z])` - acronym followed by non-letter.
+		// Use patterns to handle acronyms in different positions:
+		// 1. Start: `^(Acronym)([A-Z])` - acronym at start followed by uppercase, e.g., Xml in XMLParser.
+		// 2. AfterUpper: `([A-Z])(Acronym)([A-Z])` - acronym between uppercase, e.g., Html in UserHTMLDoc.
+		// 3. Mid: `([a-z])(Acronym)([A-Z])` - acronym in middle of camelCase, e.g., Id in userIdMore.
+		// 4. End: `([a-z])(Acronym)$` - acronym at end of identifier, e.g., Id in userId.
+		// 5. NonLetter: `([a-z])(Acronym)([^A-Za-z])` - acronym followed by non-letter.
+		regexStart := regexp.MustCompile(`^(` + a.pattern + `)([A-Z])`)
+		regexAfterUpper := regexp.MustCompile(`([A-Z])(` + a.pattern + `)([A-Z])`)
 		regexMid := regexp.MustCompile(`([a-z])(` + a.pattern + `)([A-Z])`)
 		regexEnd := regexp.MustCompile(`([a-z])(` + a.pattern + `)$`)
 		regexNonLetter := regexp.MustCompile(`([a-z])(` + a.pattern + `)([^A-Za-z])`)
 
-		// For middle case: preserve the following uppercase letter via ${3}.
+		// Start case: replace with replacement followed by ${2} (the uppercase after).
+		result = regexStart.ReplaceAllString(result, a.replacement+"${2}")
+		// After uppercase case: preserve surrounding uppercase via ${1} and ${3}.
+		result = regexAfterUpper.ReplaceAllString(result, "${1}"+a.replacement+"${3}")
+		// Middle case: preserve the following uppercase letter via ${3}.
 		result = regexMid.ReplaceAllString(result, "${1}"+a.replacement+"${3}")
-		// For non-letter case: preserve the following character via ${3}.
+		// Non-letter case: preserve the following character via ${3}.
 		result = regexNonLetter.ReplaceAllString(result, "${1}"+a.replacement+"${3}")
-		// For end case: no ${3} since there's no following letter.
+		// End case: no ${3} since there's no following letter.
 		result = regexEnd.ReplaceAllString(result, "${1}"+a.replacement)
 	}
 

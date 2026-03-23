@@ -50,14 +50,14 @@ func TestFixAcronyms(t *testing.T) {
 			expected: "Curling",
 		},
 		{
-			name:     "XmlParser should not be corrupted",
+			name:     "XmlParser should become XMLParser",
 			input:    "XmlParser",
-			expected: "XmlParser",
+			expected: "XMLParser",
 		},
 		{
-			name:     "HtmlDocument should not be corrupted",
+			name:     "HtmlDocument should become HTMLDocument",
 			input:    "HtmlDocument",
-			expected: "HtmlDocument",
+			expected: "HTMLDocument",
 		},
 		{
 			name:     "Multiple acronyms in one string",
