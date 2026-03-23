@@ -125,9 +125,14 @@ func TestFixAcronyms(t *testing.T) {
 			expected: "userID = 123",
 		},
 		{
-			name:     "imageUrl in struct literal should become imageURL",
-			input:    "imageUrl: \"https://example.com\"",
-			expected: "imageURL: \"https://example.com\"",
+			name:     "NewUrl in struct literal should remain NewUrl",
+			input:    "NewUrl: \"value\"",
+			expected: "NewUrl: \"value\"",
+		},
+		{
+			name:     "OldUrl in struct literal should remain OldUrl",
+			input:    "OldUrl: \"value\"",
+			expected: "OldUrl: \"value\"",
 		},
 		{
 			name:     "profileUrl in assignment should become profileURL",

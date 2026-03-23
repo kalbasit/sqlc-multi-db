@@ -99,9 +99,14 @@ func FixAcronyms(content []byte) []byte {
 		regexEnd := regexp.MustCompile(`([a-z])(` + a.pattern + `)$`)
 
 		// For Id, exclude '(' to preserve method calls like res.LastInsertId()
+		// For Url, exclude ':' and ',' to preserve struct field names like NewUrl, OldUrl
 		nonLetterClass := `[^A-Za-z]`
-		if a.pattern == "Id" {
+
+		switch a.pattern {
+		case "Id":
 			nonLetterClass = `[^A-Za-z(]`
+		case "Url":
+			nonLetterClass = `[^A-Za-z:,]`
 		}
 
 		regexNonLetter := regexp.MustCompile(`([a-z])(` + a.pattern + `)(` + nonLetterClass + `)`)
