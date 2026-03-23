@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"unicode"
 
@@ -52,41 +53,51 @@ func extractBulkFor(comment string) string {
 
 func toSingular(s string) string { return inflection.Singular(s) }
 
-// fixAcronyms corrects common Go acronym casing issues.
+// fixAcronyms corrects common Go acronym casing issues using word-boundary-aware
+// regex replacements to avoid corrupting words that contain acronyms as substrings.
 // For example: Id -> ID, Api -> API, Sql -> SQL, Url -> URL.
 func fixAcronyms(content []byte) []byte {
-	// Common Go acronyms that should be all caps.
-	acronyms := []string{
-		"Api", "API",
-		"Id", "ID",
-		"Sql", "SQL",
-		"Url", "URL",
-		"Html", "HTML",
-		"Xml", "XML",
-		"Json", "JSON",
-		"Jwt", "JWT",
-		"Cpu", "CPU",
-		"Io", "IO",
-		"Ip", "IP",
-		"Tcp", "TCP",
-		"Udp", "UDP",
-		"Ssh", "SSH",
-		"TLS", "TLS", // already correct
-		"Acl", "ACL",
-		"S3", "S3", // already correct
-		"Ec2", "EC2",
-		"Ebs", "EBS",
+	// Common Go acronyms that should be all caps, with their correct form.
+	acronymReplacements := []struct {
+		pattern     string
+		replacement string
+	}{
+		{"Acl", "ACL"},
+		{"Api", "API"},
+		{"Cpu", "CPU"},
+		{"Ec2", "EC2"},
+		{"Ebs", "EBS"},
+		{"Html", "HTML"},
+		{"Id", "ID"},
+		{"Io", "IO"},
+		{"Ip", "IP"},
+		{"Json", "JSON"},
+		{"Jwt", "JWT"},
+		{"S3", "S3"}, // already correct, included for completeness
+		{"Sql", "SQL"},
+		{"Ssh", "SSH"},
+		{"Tcp", "TCP"},
+		{"Tls", "TLS"},
+		{"Udp", "UDP"},
+		{"Url", "URL"},
+		{"Xml", "XML"},
 	}
 
 	result := string(content)
 
-	for i := 0; i < len(acronyms)-1; i += 2 {
-		wrong := acronyms[i]
-		right := acronyms[i+1]
-		// Only replace if not already correct (avoid infinite loops).
-		if wrong != right {
-			result = strings.ReplaceAll(result, wrong, right)
+	for _, r := range acronymReplacements {
+		// Only process if the pattern differs from replacement (skip already-correct cases)
+		if r.pattern == r.replacement {
+			continue
 		}
+
+		// Match acronym when preceded by a lowercase letter and followed by
+		// a capital letter or end of string. This prevents replacing "Id" in
+		// "Identifier" (where it should stay as "Id") but correctly handles
+		// "userId" -> "userID" and "myId" -> "myID".
+		regex := regexp.MustCompile(`([a-z])(` + r.pattern + `)([A-Z]|$)`)
+		repl := "$1" + r.replacement + "$3"
+		result = regex.ReplaceAllString(result, repl)
 	}
 
 	return []byte(result)
