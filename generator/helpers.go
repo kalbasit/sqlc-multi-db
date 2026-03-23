@@ -52,6 +52,46 @@ func extractBulkFor(comment string) string {
 
 func toSingular(s string) string { return inflection.Singular(s) }
 
+// fixAcronyms corrects common Go acronym casing issues.
+// For example: Id -> ID, Api -> API, Sql -> SQL, Url -> URL.
+func fixAcronyms(content []byte) []byte {
+	// Common Go acronyms that should be all caps.
+	acronyms := []string{
+		"Api", "API",
+		"Id", "ID",
+		"Sql", "SQL",
+		"Url", "URL",
+		"Html", "HTML",
+		"Xml", "XML",
+		"Json", "JSON",
+		"Jwt", "JWT",
+		"Cpu", "CPU",
+		"Io", "IO",
+		"Ip", "IP",
+		"Tcp", "TCP",
+		"Udp", "UDP",
+		"Ssh", "SSH",
+		"TLS", "TLS", // already correct
+		"Acl", "ACL",
+		"S3", "S3", // already correct
+		"Ec2", "EC2",
+		"Ebs", "EBS",
+	}
+
+	result := string(content)
+
+	for i := 0; i < len(acronyms)-1; i += 2 {
+		wrong := acronyms[i]
+		right := acronyms[i+1]
+		// Only replace if not already correct (avoid infinite loops).
+		if wrong != right {
+			result = strings.ReplaceAll(result, wrong, right)
+		}
+	}
+
+	return []byte(result)
+}
+
 func writeFile(dir, filename string, content []byte) {
 	// 1. Manage imports with goimports
 	withImports, err := imports.Process(filename, content, nil)
@@ -70,7 +110,10 @@ func writeFile(dir, filename string, content []byte) {
 		log.Fatalf("formatting %s: %v", filename, err)
 	}
 
-	if err := os.WriteFile(filepath.Join(dir, filename), formatted, 0o644); err != nil { //nolint:gosec
+	// 3. Fix acronym casing (Api -> API, Id -> ID, etc.)
+	fixed := fixAcronyms(formatted)
+
+	if err := os.WriteFile(filepath.Join(dir, filename), fixed, 0o644); err != nil { //nolint:gosec
 		log.Fatal(err)
 	}
 
